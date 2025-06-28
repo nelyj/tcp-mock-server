@@ -2,11 +2,8 @@ FROM golang:1.21
 
 WORKDIR /app
 
-COPY go.mod .     
-
-# Usa go mod tidy solo si tienes dependencias
-RUN go mod tidy || true
-
+COPY go.mod . 
+COPY go.sum . 
 COPY . .
 
 RUN go build -v -o tcp-server main.go
