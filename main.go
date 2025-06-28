@@ -37,6 +37,9 @@ func handleConnection(conn net.Conn) {
 	buffer := make([]byte, 1024)
 
 	for {
+		// Agregamos timeout de lectura para evitar bloqueo indefinido
+		_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+
 		n, err := conn.Read(buffer)
 		if err != nil {
 			fmt.Println("connection close o error reading:", err)
@@ -62,7 +65,7 @@ func handleConnection(conn net.Conn) {
 		if strings.HasPrefix(message, "13DU") {
 			transactionID := getTransactionID(message)
 			phone := message[73:83]
-			responseCode := phone[8:] // Últimos 2 dígitos del teléfono
+			responseCode := phone[8:]
 			msgResponse := buildTelcelResponseMessageBillPayment(responseCode, transactionID)
 			waitOneSecond()
 			conn.Write([]byte(msgResponse))
