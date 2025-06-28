@@ -1,17 +1,24 @@
-# Usa una imagen base de Go
+# Imagen base oficial de Go
 FROM golang:1.21
 
-# Crea el directorio de trabajo
+# Setea el directorio de trabajo
 WORKDIR /app
 
-# Copia el código fuente
+# Copia los archivos de módulos si existen
+COPY go.mod .     
+COPY go.sum .     
+
+# Descarga dependencias (opcional si no hay)
+RUN go mod tidy || true
+
+# Copia todo el contenido de tu proyecto
 COPY . .
 
-# Compila el binario
-RUN go build -o tcp-server .
+# Compila el servidor TCP
+RUN go build -v -o tcp-server main.go
 
-# Expón el puerto TCP (por defecto usas 9000)
+# Expón el puerto TCP en el que escucha el servidor
 EXPOSE 9000
 
-# Comando para iniciar el servidor
+# Comando de arranque
 CMD ["./tcp-server"]
