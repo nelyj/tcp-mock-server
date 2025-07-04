@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	host := "localhost"
+	host := ""
 	port := "9000"
 
 	listener, err := net.Listen("tcp", net.JoinHostPort(host, port))
