@@ -32,15 +32,17 @@ func main() {
 }
 
 func handleConnection(conn net.Conn, done chan struct{}) {
-	defer conn.Close()
-	fmt.Println("new_connection", conn.RemoteAddr())
+	defer func() {
+		fmt.Println("🔒 Cerrando conexión con", conn.RemoteAddr())
+		conn.Close()
+		close(done)
+	}()
 
+	fmt.Println("new_connection", conn.RemoteAddr())
 	buffer := make([]byte, 1024)
 
 	for {
-		// Deadline de lectura: 60 segundos
 		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-
 		n, err := conn.Read(buffer)
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
@@ -53,62 +55,73 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 
 		received := string(buffer[:n])
 		message := strings.Trim(received, "\x02\x03")
+		fmt.Println("📥 Mensaje recibido:", message)
 
-		if strings.HasPrefix(message, "97TL") {
+		switch {
+		case strings.HasPrefix(message, "97TL"):
 			continue
-		}
-		if strings.HasPrefix(message, "98DU") {
-			_, err := conn.Write([]byte(generateEchoAction("99", "DU")))
-			if err != nil {
-				fmt.Println("error sending message:", err)
-				break
-			}
-			continue
-		}
-		if strings.HasPrefix(message, "11DU") {
+
+		case strings.HasPrefix(message, "98DU"):
+			response := generateEchoAction("99", "DU")
+			conn.Write([]byte(response))
+			fmt.Println("📤 Respuesta enviada:", strings.Trim(response, "\x02\x03"))
+
+		case strings.HasPrefix(message, "11DU"):
 			transactionID := getTransactionID(message)
 			phone := message[73:83]
 			responseCode := phone[8:]
-			msgResponse := buildTelcelResponseMessageBillInquiry(responseCode, transactionID)
+			response := buildTelcelResponseMessageBillInquiry(responseCode, transactionID)
 			waitOneSecond()
-			conn.Write([]byte(msgResponse))
-			continue
-		}
-		if strings.HasPrefix(message, "13DU") {
-			fmt.Println(message)
+			conn.Write([]byte(response))
+			fmt.Println("📤 Respuesta enviada:", strings.Trim(response, "\x02\x03"))
+
+		case strings.HasPrefix(message, "13DU"):
 			transactionID := getTransactionID(message)
 			phone := message[73:83]
 			responseCode := phone[8:]
-			msgResponse := buildTelcelResponseMessageBillPayment(responseCode, transactionID)
+			response := buildTelcelResponseMessageBillPayment(responseCode, transactionID)
 			waitOneSecond()
-			conn.Write([]byte(msgResponse))
-			continue
-		}
-		if strings.HasPrefix(message, "01DU") {
-			transactionID := getTransactionID(message)
-			waitOneSecond()
-			conn.Write([]byte(buildTelcelResponseMessageAirTime("00", transactionID)))
-			continue
-		}
-		if strings.HasPrefix(message, "21DU") {
-			transactionID := getTransactionID(message)
-			waitOneSecond()
-			conn.Write([]byte(buildTelcelResponseMessageServiceSales("00", transactionID)))
-			continue
-		}
+			conn.Write([]byte(response))
+			fmt.Println("📤 Respuesta enviada:", strings.Trim(response, "\x02\x03"))
 
-		waitOneSecond()
-		conn.Write([]byte(received))
+		case strings.HasPrefix(message, "01DU"):
+			transactionID := getTransactionID(message)
+			response := buildTelcelResponseMessageAirTime("00", transactionID)
+			waitOneSecond()
+			conn.Write([]byte(response))
+			fmt.Println("📤 Respuesta enviada:", strings.Trim(response, "\x02\x03"))
+
+		case strings.HasPrefix(message, "21DU"):
+			transactionID := getTransactionID(message)
+			response := buildTelcelResponseMessageServiceSales("00", transactionID)
+			waitOneSecond()
+			conn.Write([]byte(response))
+			fmt.Println("📤 Respuesta enviada:", strings.Trim(response, "\x02\x03"))
+
+		default:
+			waitOneSecond()
+			conn.Write([]byte(received))
+			fmt.Println("📤 Eco enviado tal cual (sin parsing)")
+		}
 	}
 }
 
 func SendEchos(conn net.Conn, done <-chan struct{}) {
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+
 	for {
-		time.Sleep(1 * time.Minute)
-		_, err := conn.Write([]byte(generateEchoAction("96", "TL")))
-		if err != nil {
-			fmt.Println("cannot_send_echo", err)
-			break
+		select {
+		case <-done:
+			fmt.Println("🔁 Echo detenido: conexión cerrada")
+			return
+		case <-ticker.C:
+			_, err := conn.Write([]byte(generateEchoAction("96", "TL")))
+			if err != nil {
+				fmt.Println("❌ cannot_send_echo", err)
+				return
+			}
+			fmt.Println("✅ Echo enviado")
 		}
 	}
 }

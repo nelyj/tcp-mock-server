@@ -9,14 +9,17 @@ if ! command -v socat &>/dev/null; then
   exit 1
 fi
 
-# FIFO y log general
+# FIFO y archivo de respuestas
 PIPE=$(mktemp -u)
 mkfifo "$PIPE"
 RESP_FILE="responses_raw.log"
 
-# Inicia socat con conexión única
+# Inicia socat
 socat -v - TCP:"$HOST":"$PORT" < "$PIPE" > "$RESP_FILE" &
 SOCAT_PID=$!
+
+# Esperar a que socat esté listo
+sleep 1
 
 # Cleanup
 cleanup() {
@@ -31,26 +34,28 @@ trap cleanup SIGINT SIGTERM
 fecha=$(date +%d%m%Y)
 hora=$(date +%H%M%S)
 
-# Informa inicio
+# Info de sesión
 echo -e "\n✅ Conexión TCP abierta con $HOST:$PORT"
 echo "📡 Puedes enviar mensajes válidos Telcel (98DU, 13DU, etc.)"
 echo "🔁 El servidor puede enviarte 96TL automáticamente"
 echo "📴 Presiona Ctrl+C para cerrar la sesión"
 
-# Lector de respuestas (en paralelo)
-tail -f "$RESP_FILE" | while read -r line; do
-  if [[ "$line" == *"99DU"* ]]; then
-    echo "$line" >> response_echo.txt
-  elif [[ "$line" == *"14DU"* ]]; then
-    echo "$line" >> response_pago.txt
-  elif [[ "$line" == *"12DU"* ]]; then
-    echo "$line" >> response_monto.txt
-  elif [[ "$line" == *"96TL"* ]]; then
-    echo "$line" >> response_echo_96tl.txt
-  fi
-done &
+# Lector de respuestas en background
+(
+  tail -f "$RESP_FILE" | while read -r line; do
+    if [[ "$line" == *"99DU"* ]]; then
+      echo "$line" >> response_echo.txt
+    elif [[ "$line" == *"14DU"* ]]; then
+      echo "$line" >> response_pago.txt
+    elif [[ "$line" == *"12DU"* ]]; then
+      echo "$line" >> response_monto.txt
+    elif [[ "$line" == *"96TL"* ]]; then
+      echo "$line" >> response_echo_96tl.txt
+    fi
+  done
+) &
 
-# Esperar y enviar mensajes desde stdin
+# Esperar entrada del usuario
 while true; do
   echo -ne "\n📝 Ingrese mensaje a enviar (98DU, 13DU, 11DU) o 'exit': "
   read tipo
