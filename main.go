@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	host := "" // Escuchar en todas las interfaces para permitir conexiones externas
+	host := "localhost"
 	port := "9000"
 
 	listener, err := net.Listen("tcp", net.JoinHostPort(host, port))
@@ -37,9 +37,6 @@ func handleConnection(conn net.Conn) {
 	buffer := make([]byte, 1024)
 
 	for {
-		// Agregamos timeout de lectura para evitar bloqueo indefinido
-		_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-
 		n, err := conn.Read(buffer)
 		if err != nil {
 			fmt.Println("connection close o error reading:", err)
@@ -47,8 +44,9 @@ func handleConnection(conn net.Conn) {
 		}
 
 		received := string(buffer[:n])
-		message := strings.Trim(received, "\x02\x03")
 
+		message := string(received)
+		message = strings.Trim(message, "\x02\x03")
 		if strings.HasPrefix(message, "97TL") {
 			continue
 		}
@@ -62,10 +60,23 @@ func handleConnection(conn net.Conn) {
 			continue
 		}
 
-		if strings.HasPrefix(message, "13DU") {
+		if strings.HasPrefix(message, "11DU") {
 			transactionID := getTransactionID(message)
 			phone := message[73:83]
-			responseCode := phone[8:]
+			responseCode := phone[8:] // last 2 digits
+
+			msgResponse := buildTelcelResponseMessageBillInquiry(responseCode, transactionID)
+			waitOneSecond()
+			conn.Write([]byte(msgResponse))
+			continue
+		}
+
+		if strings.HasPrefix(message, "13DU") {
+			fmt.Println(message)
+			transactionID := getTransactionID(message)
+			phone := message[73:83]
+			responseCode := phone[8:] // last 2 digits
+
 			msgResponse := buildTelcelResponseMessageBillPayment(responseCode, transactionID)
 			waitOneSecond()
 			conn.Write([]byte(msgResponse))
@@ -93,70 +104,115 @@ func handleConnection(conn net.Conn) {
 
 func buildTelcelResponseMessageBillPayment(responseCode, transactionID string) string {
 	var sb strings.Builder
-	sb.WriteString("\x02")                                   // STX
-	sb.WriteString("14")                                     // Acción 14
-	sb.WriteString("DU")                                     // Categoría
-	sb.WriteString("000001")                                 // Consecutivo
-	sb.WriteString(time.Now().Format("02012006"))            // Fecha
-	sb.WriteString(time.Now().Format("150405"))              // Hora
-	sb.WriteString("1234567890")                             // Cadena Comercial
-	sb.WriteString("00012")                                  // Tienda
-	sb.WriteString("TERM001234")                             // Terminal
-	sb.WriteString(time.Now().Format("150405"))              // Hora local
-	sb.WriteString(time.Now().Format("20060102"))            // Fecha local
-	sb.WriteString(normalizeStringLength(transactionID, 10)) // Folio
-	sb.WriteString("5551234567")                             // Teléfono
-	sb.WriteString("1234567890123")                          // CUR
-	sb.WriteString("0000010000")                             // Monto
-	sb.WriteString("01")                                     // Compromiso de pago
-	sb.WriteString(normalizeStringLength(responseCode, 2))   // Código de respuesta
-	sb.WriteString("000123")                                 // Transacción Telcel
-	sb.WriteString("\x03")                                   // ETX
+
+	// ──────── CABECERA ────────
+	sb.WriteString("\x02")                        // STX
+	sb.WriteString("14")                          // Acción 14 (Pago de Factura)
+	sb.WriteString("DU")                          // Categoría
+	sb.WriteString("000001")                      // Consecutivo (6 chars)
+	sb.WriteString(time.Now().Format("02012006")) // Fecha (ddmmaaaa)
+	sb.WriteString(time.Now().Format("150405"))   // Hora (hhmmss)
+
+	// ──────── CUERPO DEL MENSAJE ────────
+	sb.WriteString("1234567890")                             // Cadena Comercial (10 dígitos)
+	sb.WriteString("00012")                                  // Tienda (5 dígitos)
+	sb.WriteString("TERM001234")                             // Terminal o Caja (10 alfanum)
+	sb.WriteString(time.Now().Format("150405"))              // Hora local (hhmmss)
+	sb.WriteString(time.Now().Format("20060102"))            // Fecha local (aaaammdd)
+	sb.WriteString(normalizeStringLength(transactionID, 10)) // Folio (10 dígitos)
+	sb.WriteString("5551234567")                             // Teléfono (10 dígitos)
+	sb.WriteString("1234567890123")                          // CUR (13 dígitos)
+	sb.WriteString("0000010000")                             // Monto (10 dígitos, incluye decimales)
+	sb.WriteString("01")                                     // Compromiso de pago (2 dígitos)
+	sb.WriteString(normalizeStringLength(responseCode, 2))   // Código de respuesta (2 dígitos)
+	sb.WriteString("000123")                                 // Transacción Telcel (6 dígitos)
+
+	sb.WriteString("\x03") // ETX
 	return sb.String()
 }
 
 func buildTelcelResponseMessageServiceSales(responseCode, transactionID string) string {
+
 	var sb strings.Builder
-	sb.WriteString("\x02")
-	sb.WriteString("22")
-	sb.WriteString("DU")
-	sb.WriteString("000001")
-	sb.WriteString(time.Now().Format("02012006"))
-	sb.WriteString(time.Now().Format("150405"))
-	sb.WriteString("CADENA1234")
-	sb.WriteString("T0012")
-	sb.WriteString("TERM001234")
-	sb.WriteString(time.Now().Format("150405"))
-	sb.WriteString(time.Now().Format("20060102"))
-	sb.WriteString(normalizeStringLength(transactionID, 10))
-	sb.WriteString("5551234567")
-	sb.WriteString("0000010000")
-	sb.WriteString("ABCDEF1234")
-	sb.WriteString(normalizeStringLength(responseCode, 2))
-	sb.WriteString("000000")
-	sb.WriteString("\x03")
+
+	// ──────── FIXED PART ────────
+	sb.WriteString("\x02")                        // STX
+	sb.WriteString("22")                          // Acción 22 (Respuesta de Servicio)
+	sb.WriteString("DU")                          // Categoría
+	sb.WriteString("000001")                      // Consecutivo (6 chars)
+	sb.WriteString(time.Now().Format("02012006")) // Fecha (ddmmaaaa)
+	sb.WriteString(time.Now().Format("150405"))   // Hora (hhmmss)
+
+	// ──────── VARIABLE PART ────────
+	sb.WriteString("CADENA1234")                             // Cadena Comercial (10 chars)
+	sb.WriteString("T0012")                                  // Tienda (5 chars)
+	sb.WriteString("TERM001234")                             // Terminal/Caja (10 chars)
+	sb.WriteString(time.Now().Format("150405"))              // Hora local (hhmmss)
+	sb.WriteString(time.Now().Format("20060102"))            // Fecha local (aaaammdd)
+	sb.WriteString(normalizeStringLength(transactionID, 10)) // Folio (10 chars)
+	sb.WriteString("5551234567")                             // Teléfono (10 chars)
+	sb.WriteString("0000010000")                             // Monto (10 chars: 100.00)
+	sb.WriteString("ABCDEF1234")                             // ID Producto (10 chars)
+	sb.WriteString(normalizeStringLength(responseCode, 2))   // Código de respuesta (2 chars)
+	sb.WriteString("000000")                                 // Transacción Telcel (6 chars, default)
+
+	sb.WriteString("\x03") // ETX
 	return sb.String()
 }
 
 func buildTelcelResponseMessageAirTime(responseCode, transactionID string) string {
 	var sb strings.Builder
-	sb.WriteString("\x02")
-	sb.WriteString("02")
-	sb.WriteString("DU")
-	sb.WriteString("000001")
-	sb.WriteString(time.Now().Format("20060102"))
-	sb.WriteString(time.Now().Format("150405"))
-	sb.WriteString("CADENA1234")
-	sb.WriteString("T0012")
-	sb.WriteString("TERM001234")
-	sb.WriteString(time.Now().Format("150405"))
-	sb.WriteString(time.Now().Format("20060102"))
-	sb.WriteString(normalizeStringLength(transactionID, 10))
-	sb.WriteString("5551234567")
-	sb.WriteString("0000010000")
-	sb.WriteString(normalizeStringLength(responseCode, 2))
-	sb.WriteString("654321")
-	sb.WriteString("\x03")
+
+	// ──────── FIXED PART ────────
+	sb.WriteString("\x02")                        // STX
+	sb.WriteString("02")                          // Acción 02 (Abono Tiempo Aire)
+	sb.WriteString("DU")                          // Categoría
+	sb.WriteString("000001")                      // Consecutivo (6 chars)
+	sb.WriteString(time.Now().Format("20060102")) // Fecha local (aaaammdd)
+	sb.WriteString(time.Now().Format("150405"))   // Hora local (hhmmss)
+
+	// ──────── VARIABLE PART ────────
+	sb.WriteString("CADENA1234")                             // Cadena Comercial (10 chars)
+	sb.WriteString("T0012")                                  // Tienda (5 chars)
+	sb.WriteString("TERM001234")                             // Terminal/Caja (10 chars)
+	sb.WriteString(time.Now().Format("150405"))              // Hora local (hhmmss)
+	sb.WriteString(time.Now().Format("20060102"))            // Fecha local (aaaammdd)
+	sb.WriteString(normalizeStringLength(transactionID, 10)) // Folio (10 chars)
+	sb.WriteString("5551234567")                             // Teléfono (10 chars)
+	sb.WriteString("0000010000")                             // Monto (10 chars: 100.00)
+	sb.WriteString(normalizeStringLength(responseCode, 2))   // Código de respuesta (2 chars)
+	sb.WriteString("654321")                                 // Transacción Telcel (6 chars)
+
+	sb.WriteString("\x03") // ETX
+	return sb.String()
+}
+
+func buildTelcelResponseMessageBillInquiry(responseCode, transactionID string) string {
+	var sb strings.Builder
+
+	// ──────── CABECERA ────────
+	sb.WriteString("\x02")                        // STX
+	sb.WriteString("12")                          // Acción 12 (Respuesta a Requerimiento de Monto Factura)
+	sb.WriteString("DU")                          // Categoría
+	sb.WriteString("000001")                      // Consecutivo
+	sb.WriteString(time.Now().Format("02012006")) // Fecha (ddmmaaaa)
+	sb.WriteString(time.Now().Format("150405"))   // Hora (hhmmss)
+
+	// ──────── CUERPO DEL MENSAJE ────────
+	sb.WriteString("1234567890")                             // Cadena Comercial (10)
+	sb.WriteString("00012")                                  // Tienda (5)
+	sb.WriteString("TERM001234")                             // Terminal (10)
+	sb.WriteString(time.Now().Format("150405"))              // Hora local (6)
+	sb.WriteString(time.Now().Format("20060102"))            // Fecha local (8)
+	sb.WriteString(normalizeStringLength(transactionID, 10)) // Folio (10)
+	sb.WriteString("5551234567")                             // Teléfono (10)
+	sb.WriteString("1234567890123")                          // CUR (13)
+	sb.WriteString("0000012000")                             // Saldo Estimado (10)
+	sb.WriteString("0000013000")                             // Saldo Actual (10)
+	sb.WriteString(normalizeStringLength(responseCode, 2))   // Código de respuesta (2)
+	sb.WriteString("000123")                                 // Transacción Telcel (6)
+
+	sb.WriteString("\x03") // ETX
 	return sb.String()
 }
 
