@@ -25,12 +25,13 @@ func main() {
 			fmt.Println("Error to Accept connection:", err)
 			continue
 		}
-		go SendEchos(conn)
-		go handleConnection(conn)
+		done := make(chan struct{})
+		go SendEchos(conn, done)
+		go handleConnection(conn, done)
 	}
 }
 
-func handleConnection(conn net.Conn) {
+func handleConnection(conn net.Conn, done chan struct{}) {
 	defer conn.Close()
 	fmt.Println("new_connection", conn.RemoteAddr())
 
@@ -226,7 +227,7 @@ func generateEchoAction(actions string, sourceIdentifier string) string {
 	return fmt.Sprintf("%s%s%s%s%s%s%s", start, actions, sourceIdentifier, formattedConsecutive, dateFormat, hourFormat, end)
 }
 
-func SendEchos(conn net.Conn) {
+func SendEchos(conn net.Conn, done <-chan struct{}) {
 	for {
 		time.Sleep(1 * time.Minute)
 		_, err := conn.Write([]byte(generateEchoAction("96", "TL")))
