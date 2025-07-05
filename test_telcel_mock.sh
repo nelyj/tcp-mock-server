@@ -3,59 +3,27 @@
 HOST="${1:-caboose.proxy.rlwy.net}"
 PORT="${2:-17738}"
 
-# Verifica que socat esté instalado
-if ! command -v socat &>/dev/null; then
-  echo "❌ socat no está instalado. Instálalo con: sudo apt install socat"
+# Verifica que netcat esté instalado
+if ! command -v nc &>/dev/null; then
+  echo "❌ netcat (nc) no está instalado. Instálalo con: sudo apt install netcat"
   exit 1
 fi
 
-# FIFO y archivo de respuestas
+# Info de sesión
+echo -e "\n✅ Conexión TCP interactiva con $HOST:$PORT"
+echo "📡 Puedes enviar mensajes válidos Telcel (98DU, 13DU, 11DU)"
+echo "📴 Presiona Ctrl+C para salir"
+
 PIPE=$(mktemp -u)
 mkfifo "$PIPE"
-RESP_FILE="responses_raw.log"
+RESP_FILE="responses_raw_nc.log"
 
-# Inicia socat
-socat -v - TCP:"$HOST":"$PORT" < "$PIPE" > "$RESP_FILE" &
-SOCAT_PID=$!
+nc "$HOST" "$PORT" < "$PIPE" > "$RESP_FILE" &
+NC_PID=$!
 
-# Esperar a que socat esté listo
-sleep 1
+trap "echo '👋 Cerrando sesión...'; kill $NC_PID; rm -f $PIPE; exit 0" SIGINT
 
-# Cleanup
-cleanup() {
-  echo -e "\n🧹 Cerrando sesión TCP..."
-  kill "$SOCAT_PID" 2>/dev/null
-  rm -f "$PIPE"
-  exit 0
-}
-trap cleanup SIGINT SIGTERM
-
-# Timestamp inicial
-fecha=$(date +%d%m%Y)
-hora=$(date +%H%M%S)
-
-# Info de sesión
-echo -e "\n✅ Conexión TCP abierta con $HOST:$PORT"
-echo "📡 Puedes enviar mensajes válidos Telcel (98DU, 13DU, etc.)"
-echo "🔁 El servidor puede enviarte 96TL automáticamente"
-echo "📴 Presiona Ctrl+C para cerrar la sesión"
-
-# Lector de respuestas en background
-(
-  tail -f "$RESP_FILE" | while read -r line; do
-    if [[ "$line" == *"99DU"* ]]; then
-      echo "$line" >> response_echo.txt
-    elif [[ "$line" == *"14DU"* ]]; then
-      echo "$line" >> response_pago.txt
-    elif [[ "$line" == *"12DU"* ]]; then
-      echo "$line" >> response_monto.txt
-    elif [[ "$line" == *"96TL"* ]]; then
-      echo "$line" >> response_echo_96tl.txt
-    fi
-  done
-) &
-
-# Esperar entrada del usuario
+# Bucle interactivo
 while true; do
   echo -ne "\n📝 Ingrese mensaje a enviar (98DU, 13DU, 11DU) o 'exit': "
   read tipo
@@ -64,28 +32,33 @@ while true; do
 
   case "$tipo" in
     98DU)
-      echo -ne "\x0298DU000001${fecha}${hora}\x03" > "$PIPE"
-      echo "✅ Enviado 98DU (Echo)"
+      msg=$'\x0298DU000001'"${fecha}${hora}"$'\x03'
       ;;
 
     13DU)
-      msg=$'\x02'13DU000001"${fecha}${hora}"123456789000001TERM001234"${hora}${fecha}"123456789055512345001234567890123000001250010$'\x03'
-      echo -ne "$msg" > "$PIPE"
-      echo "✅ Enviado 13DU (Pago de Factura)"
+      msg=$'\x0213DU000001'"${fecha}${hora}"123456789000001TERM001234"${hora}${fecha}"123456789055512345001234567890123000001250010$'\x03'
       ;;
 
     11DU)
-      msg=$'\x02'11DU000001"${fecha}${hora}"123456789000001TERM001234"${hora}${fecha}"55512345670000010000$'\x03'
-      echo -ne "$msg" > "$PIPE"
-      echo "✅ Enviado 11DU (Requerimiento de Monto)"
+      msg=$'\x0211DU000001'"${fecha}${hora}"123456789000001TERM001234"${hora}${fecha}"55512345670000010000$'\x03'
       ;;
 
     exit)
-      cleanup
+      echo "👋 Cerrando sesión..."
+      kill $NC_PID
+      rm -f $PIPE
+      exit 0
       ;;
 
     *)
       echo "❓ Tipo no válido: $tipo"
+      continue
       ;;
   esac
+
+  echo -ne "$msg" > "$PIPE"
+  echo "✅ Mensaje enviado"
+  echo "📥 Esperando respuesta..."
+  sleep 1
+  tail -n 10 "$RESP_FILE"
 done

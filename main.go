@@ -82,6 +82,7 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 			fmt.Println("✅ Echo enviado y conexión validada para", remoteIP)
 
 		case strings.HasPrefix(message, "11DU"):
+			fmt.Println("🔎 Largo del mensaje:", len(message))
 			val, ok := validatedConnections.Load(remoteIP)
 			isValidated, _ := val.(bool)
 			if !ok || !isValidated {
@@ -89,14 +90,18 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 				continue
 			}
 			transactionID := getTransactionID(message)
+			fmt.Println("🔑 transactionID:", transactionID)
 			phone := message[73:83]
+			fmt.Println("📱 phone:", phone)
 			responseCode := phone[8:]
+			fmt.Println("📟 responseCode:", responseCode)
 			response := buildTelcelResponseMessageBillInquiry(responseCode, transactionID)
 			waitOneSecond()
 			conn.Write([]byte(response))
 			fmt.Println("📤 Respuesta enviada:", strings.Trim(response, "\x02\x03"))
 
 		case strings.HasPrefix(message, "13DU"):
+			fmt.Println("🔎 Largo del mensaje:", len(message))
 			val, ok := validatedConnections.Load(remoteIP)
 			isValidated, _ := val.(bool)
 			if !ok || !isValidated {
@@ -104,8 +109,11 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 				continue
 			}
 			transactionID := getTransactionID(message)
+			fmt.Println("🔑 transactionID:", transactionID)
 			phone := message[73:83]
+			fmt.Println("📱 phone:", phone)
 			responseCode := phone[8:]
+			fmt.Println("📟 responseCode:", responseCode)
 			response := buildTelcelResponseMessageBillPayment(responseCode, transactionID)
 			waitOneSecond()
 			conn.Write([]byte(response))
