@@ -71,8 +71,10 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 		}
 
 		received := string(buffer[:n])
+		fmt.Printf("📦 Raw bytes: % x\n", buffer[:n])
 		message := strings.Trim(received, "\x02\x03")
 		fmt.Println("📥 Mensaje recibido:", message)
+		fmt.Println("🧪 Evaluando case:", message[0:4])
 
 		switch {
 		case strings.HasPrefix(message, "97TL"):
