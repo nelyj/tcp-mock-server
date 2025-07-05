@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 	"time"
 )
+
+var activeConnections sync.Map
 
 func main() {
 	host := ""
@@ -26,7 +29,12 @@ func main() {
 			continue
 		}
 		done := make(chan struct{})
-		go SendEchos(conn, done)
+		remoteIP := strings.Split(conn.RemoteAddr().String(), ":")[0]
+		if _, loaded := activeConnections.LoadOrStore(remoteIP, struct{}{}); !loaded {
+			go SendEchos(conn, done, remoteIP)
+		} else {
+			fmt.Println("🔁 Ya existe conexión activa para IP", remoteIP)
+		}
 		go handleConnection(conn, done)
 	}
 }
@@ -34,6 +42,8 @@ func main() {
 func handleConnection(conn net.Conn, done chan struct{}) {
 	defer func() {
 		fmt.Println("🔒 Cerrando conexión con", conn.RemoteAddr())
+		remoteIP := strings.Split(conn.RemoteAddr().String(), ":")[0]
+		activeConnections.Delete(remoteIP)
 		conn.Close()
 		close(done)
 	}()
@@ -42,7 +52,7 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 	buffer := make([]byte, 1024)
 
 	for {
-		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		conn.SetReadDeadline(time.Now().Add(3 * time.Minute))
 		n, err := conn.Read(buffer)
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
@@ -106,9 +116,10 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 	}
 }
 
-func SendEchos(conn net.Conn, done <-chan struct{}) {
+func SendEchos(conn net.Conn, done <-chan struct{}, remoteIP string) {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
+	defer activeConnections.Delete(remoteIP)
 
 	for {
 		select {
