@@ -84,6 +84,7 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 
 		switch {
 		case strings.HasPrefix(message, "97TL"):
+			fmt.Println("✅ Respuesta recibida a echo 96TL (97TL), conexión activa.")
 			continue
 
 		case strings.HasPrefix(message, "98DU"):
@@ -159,34 +160,6 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 			fmt.Println("📤 Mensaje enviado (raw):", response)
 			fmt.Println("📤 Respuesta enviada:", strings.Trim(response, "\x02\x03"))
 
-		case strings.HasPrefix(message, "01DU"):
-			val, ok := validatedConnections.Load(remoteIP)
-			isValidated, _ := val.(bool)
-			if !ok || !isValidated {
-				fmt.Println("🚫 Conexión no validada con Echo desde", remoteIP)
-				continue
-			}
-			transactionID := getTransactionID(message)
-			response := buildTelcelResponseMessageAirTime("00", transactionID)
-			waitOneSecond()
-			conn.Write([]byte(response))
-			fmt.Println("📤 Mensaje enviado (raw):", response)
-			fmt.Println("📤 Respuesta enviada:", strings.Trim(response, "\x02\x03"))
-
-		case strings.HasPrefix(message, "21DU"):
-			val, ok := validatedConnections.Load(remoteIP)
-			isValidated, _ := val.(bool)
-			if !ok || !isValidated {
-				fmt.Println("🚫 Conexión no validada con Echo desde", remoteIP)
-				continue
-			}
-			transactionID := getTransactionID(message)
-			response := buildTelcelResponseMessageServiceSales("00", transactionID)
-			waitOneSecond()
-			conn.Write([]byte(response))
-			fmt.Println("📤 Mensaje enviado (raw):", response)
-			fmt.Println("📤 Respuesta enviada:", strings.Trim(response, "\x02\x03"))
-
 		default:
 			log.Printf("❌ No matching handler found for case: %s", messageType)
 			waitOneSecond()
@@ -207,12 +180,13 @@ func SendEchos(conn net.Conn, done <-chan struct{}, remoteIP string) {
 			fmt.Println("🔁 Echo detenido: conexión cerrada")
 			return
 		case <-ticker.C:
-			_, err := conn.Write([]byte(generateEchoAction("96", "TL")))
+			echo := generateEchoAction("96", "TL")
+			_, err := conn.Write([]byte(echo))
 			if err != nil {
 				fmt.Println("❌ cannot_send_echo", err)
 				return
 			}
-			fmt.Println("✅ Echo enviado")
+			fmt.Printf("📤 Echo enviado (raw): %s\n", echo)
 		}
 	}
 }

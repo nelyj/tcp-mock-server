@@ -16,10 +16,14 @@ echo "📡 Enviando mensaje de validación (98DU)..."
 echo -ne "\x0298DU000017${fecha}${hora}\x03" | nc $HOST $PORT
 sleep 1
 
-# Info de sesión
 echo -e "\n✅ Conexión TCP interactiva con $HOST:$PORT"
 echo "📡 Puedes enviar mensajes válidos Telcel (98DU, 13DU, 11DU)"
 echo "📴 Presiona Ctrl+C para salir"
+
+# Simulación de ECHO desde Telcel (96DU)
+echo "🔁 Simulando ECHO desde Telcel (96DU)..."
+echo -ne "\x0296DU000001$(date +%Y%m%d%H%M%S)\x03" | nc $HOST $PORT
+sleep 1
 
 # Documentación técnica de códigos de respuesta para 13DU:
 # Código 00: Éxito - La transacción fue realizada correctamente.
@@ -38,15 +42,15 @@ echo "📴 Presiona Ctrl+C para salir"
 
 echo -e "\n📊 Enviando ejemplos de 13DU (Pago de Factura):"
 
-# Lista de teléfonos con códigos esperados
+# Lista de teléfonos con códigos esperados y descripciones
 declare -A test_cases=(
-  ["123456789000"]="00"
-  ["123456789001"]="01"
-  ["123456789002"]="02"
-  ["123456789003"]="03"
-  ["123456789004"]="04"
-  ["123456789005"]="05"
-  ["123456789099"]="99"
+  ["123456789000"]="00" # Éxito
+  ["123456789001"]="01" # Teléfono no existe
+  ["123456789002"]="02" # Importe incorrecto
+  ["123456789003"]="03" # Cliente no identificado
+  ["123456789004"]="04" # Cuenta vencida
+  ["123456789005"]="05" # Servicio no disponible
+  ["123456789009"]="99" # Error no identificado
 )
 
 for telefono in "${!test_cases[@]}"; do
