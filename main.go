@@ -118,9 +118,13 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 			transactionID := getTransactionID(message)
 			fmt.Println("🔑 transactionID:", transactionID)
 			phone := message[73:83]
-			fmt.Println("📱 phone:", phone)
+			if len(phone) < 10 {
+				fmt.Printf("⚠️ Número de teléfono mal formado: [%s] (len=%d)\n", phone, len(phone))
+				fmt.Println("⚠️ Error: No se pudo extraer correctamente el transactionID o phone del mensaje recibido.")
+				return
+			}
 			responseCode := phone[8:]
-			fmt.Println("📟 responseCode:", responseCode)
+			fmt.Printf("📱 phone: %s | responseCode: %s\n", phone, responseCode)
 			response := buildTelcelResponseMessageBillPayment(responseCode, transactionID)
 			waitOneSecond()
 			conn.Write([]byte(response))
@@ -288,6 +292,7 @@ func normalizeStringLength(s string, length int) string {
 
 func getTransactionID(msg string) string {
 	if len(msg) < 74 {
+		fmt.Printf("❌ Mensaje muy corto para extraer transactionID (len=%d): [%s]\n", len(msg), msg)
 		return ""
 	}
 	return msg[63:73]
