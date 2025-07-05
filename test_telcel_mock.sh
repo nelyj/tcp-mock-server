@@ -3,11 +3,18 @@
 HOST="${1:-caboose.proxy.rlwy.net}"
 PORT="${2:-17738}"
 
-# Verifica que netcat esté instalado
+ # Verifica que netcat esté instalado
 if ! command -v nc &>/dev/null; then
   echo "❌ netcat (nc) no está instalado. Instálalo con: sudo apt install netcat"
   exit 1
 fi
+
+# Enviar mensaje de validación 98DU antes de cualquier 13DU
+fecha=$(date +%d%m%Y)
+hora=$(date +%H%M%S)
+echo "📡 Enviando mensaje de validación (98DU)..."
+echo -ne "\x0298DU000017${fecha}${hora}\x03" | nc $HOST $PORT
+sleep 1
 
 # Info de sesión
 echo -e "\n✅ Conexión TCP interactiva con $HOST:$PORT"
@@ -16,58 +23,38 @@ echo "📴 Presiona Ctrl+C para salir"
 
 # Documentación técnica de códigos de respuesta para 13DU:
 # Código 00: Éxito - La transacción fue realizada correctamente.
-# Código 03: Comercio inválido
-# Código 04: Tarjeta expirada
-# Código 05: Denegada - La transacción fue denegada por el banco emisor.
+# Código 01: Teléfono no existe
+# Código 02: Importe incorrecto
+# Código 03: Cliente no identificado
+# Código 04: Cuenta vencida
+# Código 05: Servicio no disponible
 # Código 12: Inválida - La transacción es inválida o no autorizada.
 # Código 51: Fondos insuficientes
 # Código 54: Tarjeta vencida
 # Código 61: Excede el límite de retiro
 # Código 91: Emisor no disponible
-# Código 99: Error general - Error general del sistema, transacción no procesada.
+# Código 99: Error no identificado
 # Otros códigos pueden existir, consulte la documentación para detalles adicionales.
 
 echo -e "\n📊 Enviando ejemplos de 13DU (Pago de Factura):"
 
-echo "📨 Enviando 13DU con código de respuesta 00 (Éxito: Transacción realizada)"
-telefono="1234567800"
-./client.sh "13DU" "$telefono"
+# Lista de teléfonos con códigos esperados
+declare -A test_cases=(
+  ["123456789000"]="00"
+  ["123456789001"]="01"
+  ["123456789002"]="02"
+  ["123456789003"]="03"
+  ["123456789004"]="04"
+  ["123456789005"]="05"
+  ["123456789099"]="99"
+)
 
-echo "📨 Enviando 13DU con código de respuesta 03 (Comercio inválido)"
-telefono="1234567803"
-./client.sh "13DU" "$telefono"
-
-echo "📨 Enviando 13DU con código de respuesta 04 (Tarjeta expirada)"
-telefono="1234567804"
-./client.sh "13DU" "$telefono"
-
-echo "📨 Enviando 13DU con código de respuesta 05 (Denegada por el banco emisor)"
-telefono="1234567805"
-./client.sh "13DU" "$telefono"
-
-echo "📨 Enviando 13DU con código de respuesta 12 (Transacción inválida)"
-telefono="1234567812"
-./client.sh "13DU" "$telefono"
-
-echo "📨 Enviando 13DU con código de respuesta 51 (Fondos insuficientes)"
-telefono="1234567851"
-./client.sh "13DU" "$telefono"
-
-echo "📨 Enviando 13DU con código de respuesta 54 (Tarjeta vencida)"
-telefono="1234567854"
-./client.sh "13DU" "$telefono"
-
-echo "📨 Enviando 13DU con código de respuesta 61 (Excede el límite de retiro)"
-telefono="1234567861"
-./client.sh "13DU" "$telefono"
-
-echo "📨 Enviando 13DU con código de respuesta 91 (Emisor no disponible)"
-telefono="1234567891"
-./client.sh "13DU" "$telefono"
-
-echo "📨 Enviando 13DU con código de respuesta 99 (Error general del sistema)"
-telefono="1234567899"
-./client.sh "13DU" "$telefono"
+for telefono in "${!test_cases[@]}"; do
+  code="${test_cases[$telefono]}"
+  transaction_id="07042025${telefono: -2}"
+  echo "--- Enviando mensaje con teléfono: $telefono (esperado: código $code) ---"
+  ./client.sh "$HOST" "$PORT" "$transaction_id" "$telefono"
+done
 
 PIPE=$(mktemp -u)
 mkfifo "$PIPE"
@@ -88,7 +75,6 @@ while true; do
   case "$tipo" in
     98DU)
       echo "🟡 Enviando mensaje tipo 98DU"
-      echo "📦 Mensaje construido: $msg"
       msg=$'\x0298DU000017'"${fecha}${hora}"$'\x03'
       echo "📦 Mensaje construido: $msg"
       ;;
@@ -98,7 +84,6 @@ while true; do
       ;;
     11DU)
       echo "🟡 Enviando mensaje tipo 11DU"
-      echo "📦 Mensaje construido: $msg"
       msg=$'\x0211DU000017'"${fecha}${hora}"'123456789000001TERM001234'"${hora}${fecha}"'55512345670000010000'$'\x03'
       echo "📦 Mensaje construido: $msg"
       ;;
@@ -137,14 +122,17 @@ while true; do
   tail -n 10 "$RESP_FILE"
 done
 
-echo "📨 Enviando 13DU con código de respuesta 05 (teléfono termina en 05)..."
+transaction_id="0704202505"
 telefono="1234567805"
-./client.sh "13DU" "$telefono"
+echo "📨 Enviando 13DU con código de respuesta 05 (teléfono termina en 05)..."
+./client.sh "$HOST" "$PORT" "$transaction_id" "$telefono"
 
-echo "📨 Enviando 13DU con código de respuesta 12 (teléfono termina en 12)..."
+transaction_id="0704202512"
 telefono="1234567812"
-./client.sh "13DU" "$telefono"
+echo "📨 Enviando 13DU con código de respuesta 12 (teléfono termina en 12)..."
+./client.sh "$HOST" "$PORT" "$transaction_id" "$telefono"
 
-echo "📨 Enviando 13DU con código de respuesta 99 (teléfono termina en 99)..."
+transaction_id="0704202599"
 telefono="1234567899"
-./client.sh "13DU" "$telefono"
+echo "📨 Enviando 13DU con código de respuesta 99 (teléfono termina en 99)..."
+./client.sh "$HOST" "$PORT" "$transaction_id" "$telefono"

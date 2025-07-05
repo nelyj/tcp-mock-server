@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"strings"
 	"sync"
@@ -73,8 +74,13 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 		received := string(buffer[:n])
 		fmt.Printf("📦 Raw bytes: % x\n", buffer[:n])
 		message := strings.Trim(received, "\x02\x03")
+		if len(message) < 4 {
+			fmt.Println("❌ Mensaje demasiado corto para evaluar case:", message)
+			continue
+		}
+		messageType := message[0:4]
 		fmt.Println("📥 Mensaje recibido:", message)
-		fmt.Println("🧪 Evaluando case:", message[0:4])
+		fmt.Println("🧪 Evaluando case:", messageType)
 
 		switch {
 		case strings.HasPrefix(message, "97TL"):
@@ -112,20 +118,42 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 			val, ok := validatedConnections.Load(remoteIP)
 			isValidated, _ := val.(bool)
 			if !ok || !isValidated {
-				fmt.Println("🚫 Conexión no validada con Echo desde", remoteIP)
-				continue
-			}
-			transactionID := getTransactionID(message)
-			fmt.Println("🔑 transactionID:", transactionID)
-			phone := message[73:83]
-			if len(phone) < 10 {
-				fmt.Printf("⚠️ Número de teléfono mal formado: [%s] (len=%d)\n", phone, len(phone))
-				fmt.Println("⚠️ Error: No se pudo extraer correctamente el transactionID o phone del mensaje recibido.")
+				fmt.Println("❌ Error: conexión no validada previamente con echo.")
 				return
 			}
-			responseCode := phone[8:]
-			fmt.Printf("📱 phone: %s | responseCode: %s\n", phone, responseCode)
-			response := buildTelcelResponseMessageBillPayment(responseCode, transactionID)
+			if len(message) < 58 {
+				fmt.Printf("⚠️ Mensaje demasiado corto para extraer transactionID y telefono (len=%d)\n", len(message))
+				continue
+			}
+			transactionID := message[26:38]
+			telefono := message[48:58]
+			if len(telefono) < 2 {
+				fmt.Printf("⚠️ Número de teléfono mal formado: [%s] (len=%d)\n", telefono, len(telefono))
+				continue
+			}
+			responseCode := telefono[len(telefono)-2:]
+			fmt.Printf("🔑 transactionID: %s | 📱 telefono: %s | 📟 responseCode: %s\n", transactionID, telefono, responseCode)
+
+			var response string
+			switch responseCode {
+			case "00":
+				response = buildTelcelResponseMessageBillPayment("00", transactionID)
+			case "01":
+				response = buildTelcelResponseMessageBillPayment("01", transactionID)
+			case "02":
+				response = buildTelcelResponseMessageBillPayment("02", transactionID)
+			case "03":
+				response = buildTelcelResponseMessageBillPayment("03", transactionID)
+			case "04":
+				response = buildTelcelResponseMessageBillPayment("04", transactionID)
+			case "05":
+				response = buildTelcelResponseMessageBillPayment("05", transactionID)
+			case "99":
+				response = buildTelcelResponseMessageBillPayment("99", transactionID)
+			default:
+				response = buildTelcelResponseMessageBillPayment("99", transactionID)
+			}
+
 			waitOneSecond()
 			conn.Write([]byte(response))
 			fmt.Println("📤 Mensaje enviado (raw):", response)
@@ -160,6 +188,7 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 			fmt.Println("📤 Respuesta enviada:", strings.Trim(response, "\x02\x03"))
 
 		default:
+			log.Printf("❌ No matching handler found for case: %s", messageType)
 			waitOneSecond()
 			conn.Write([]byte(received))
 			fmt.Println("📤 Eco enviado tal cual (sin parsing)")
