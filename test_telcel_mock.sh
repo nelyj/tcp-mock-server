@@ -9,12 +9,6 @@ if ! command -v nc &>/dev/null; then
   exit 1
 fi
 
-# Enviar mensaje de validación 98DU antes de cualquier 13DU
-fecha=$(date +%d%m%Y)
-hora=$(date +%H%M%S)
-echo "📡 Enviando mensaje de validación (98DU)..."
-echo -ne "\x0298DU000017${fecha}${hora}\x03" | nc $HOST $PORT
-sleep 1
 
 echo -e "\n✅ Conexión TCP interactiva con $HOST:$PORT"
 echo "📡 Puedes enviar mensajes válidos Telcel (98DU, 13DU, 11DU)"

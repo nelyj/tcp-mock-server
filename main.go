@@ -87,21 +87,8 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 			fmt.Println("✅ Respuesta recibida a echo 96TL (97TL), conexión activa.")
 			continue
 
-		case strings.HasPrefix(message, "98DU"):
-			validatedConnections.Store(remoteIP, true)
-			response := generateEchoAction("99", "DU")
-			conn.Write([]byte(response))
-			fmt.Println("📤 Mensaje enviado (raw):", response)
-			fmt.Println("✅ Echo enviado y conexión validada para", remoteIP)
-
 		case strings.HasPrefix(message, "11DU"):
 			fmt.Println("🔎 Largo del mensaje:", len(message))
-			val, ok := validatedConnections.Load(remoteIP)
-			isValidated, _ := val.(bool)
-			if !ok || !isValidated {
-				fmt.Println("🚫 Conexión no validada con Echo desde", remoteIP)
-				continue
-			}
 			transactionID := getTransactionID(message)
 			fmt.Println("🔑 transactionID:", transactionID)
 			phone := message[73:83]
@@ -116,12 +103,6 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 
 		case strings.HasPrefix(message, "13DU"):
 			fmt.Println("🔎 Largo del mensaje:", len(message))
-			val, ok := validatedConnections.Load(remoteIP)
-			isValidated, _ := val.(bool)
-			if !ok || !isValidated {
-				fmt.Println("❌ Error: conexión no validada previamente con echo.")
-				return
-			}
 			if len(message) < 58 {
 				fmt.Printf("⚠️ Mensaje demasiado corto para extraer transactionID y telefono (len=%d)\n", len(message))
 				continue
