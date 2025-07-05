@@ -32,24 +32,20 @@ while true; do
 
   case "$tipo" in
     98DU)
-      msg=$'\x0298DU000001'"${fecha}${hora}"$'\x03'
+      msg=$'\x0298DU000017'"${fecha}${hora}"$'\x03'
       ;;
-
     13DU)
-      msg=$'\x0213DU000001'"${fecha}${hora}"123456789000001TERM001234"${hora}${fecha}"123456789055512345001234567890123000001250010$'\x03'
+      msg=$'\x0213DU000017'"${fecha}${hora}"'123456789000001TERM001234'"${hora}${fecha}"'123456789055512345001234567890123000001250010'$'\x03'
       ;;
-
     11DU)
-      msg=$'\x0211DU000001'"${fecha}${hora}"123456789000001TERM001234"${hora}${fecha}"55512345670000010000$'\x03'
+      msg=$'\x0211DU000017'"${fecha}${hora}"'123456789000001TERM001234'"${hora}${fecha}"'55512345670000010000'$'\x03'
       ;;
-
     exit)
       echo "👋 Cerrando sesión..."
       kill $NC_PID
       rm -f $PIPE
       exit 0
       ;;
-
     *)
       echo "❓ Tipo no válido: $tipo"
       continue

@@ -59,11 +59,14 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 		conn.SetReadDeadline(time.Now().Add(3 * time.Minute))
 		n, err := conn.Read(buffer)
 		if err != nil {
-			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			if err.Error() == "EOF" {
+				fmt.Println("📴 Conexión cerrada por el cliente")
+			} else if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				fmt.Println("⏳ Read timeout, esperando nuevo mensaje...")
 				continue
+			} else {
+				fmt.Println("❌ Error en lectura:", err)
 			}
-			fmt.Println("connection close o error reading:", err)
 			break
 		}
 
@@ -79,6 +82,7 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 			validatedConnections.Store(remoteIP, true)
 			response := generateEchoAction("99", "DU")
 			conn.Write([]byte(response))
+			fmt.Println("📤 Mensaje enviado (raw):", response)
 			fmt.Println("✅ Echo enviado y conexión validada para", remoteIP)
 
 		case strings.HasPrefix(message, "11DU"):
@@ -98,6 +102,7 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 			response := buildTelcelResponseMessageBillInquiry(responseCode, transactionID)
 			waitOneSecond()
 			conn.Write([]byte(response))
+			fmt.Println("📤 Mensaje enviado (raw):", response)
 			fmt.Println("📤 Respuesta enviada:", strings.Trim(response, "\x02\x03"))
 
 		case strings.HasPrefix(message, "13DU"):
@@ -117,6 +122,7 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 			response := buildTelcelResponseMessageBillPayment(responseCode, transactionID)
 			waitOneSecond()
 			conn.Write([]byte(response))
+			fmt.Println("📤 Mensaje enviado (raw):", response)
 			fmt.Println("📤 Respuesta enviada:", strings.Trim(response, "\x02\x03"))
 
 		case strings.HasPrefix(message, "01DU"):
@@ -130,6 +136,7 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 			response := buildTelcelResponseMessageAirTime("00", transactionID)
 			waitOneSecond()
 			conn.Write([]byte(response))
+			fmt.Println("📤 Mensaje enviado (raw):", response)
 			fmt.Println("📤 Respuesta enviada:", strings.Trim(response, "\x02\x03"))
 
 		case strings.HasPrefix(message, "21DU"):
@@ -143,6 +150,7 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 			response := buildTelcelResponseMessageServiceSales("00", transactionID)
 			waitOneSecond()
 			conn.Write([]byte(response))
+			fmt.Println("📤 Mensaje enviado (raw):", response)
 			fmt.Println("📤 Respuesta enviada:", strings.Trim(response, "\x02\x03"))
 
 		default:
