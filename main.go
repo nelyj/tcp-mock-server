@@ -9,6 +9,7 @@ import (
 )
 
 var activeConnections sync.Map
+var validatedConnections sync.Map
 
 func main() {
 	host := ""
@@ -44,12 +45,15 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 		fmt.Println("🔒 Cerrando conexión con", conn.RemoteAddr())
 		remoteIP := strings.Split(conn.RemoteAddr().String(), ":")[0]
 		activeConnections.Delete(remoteIP)
+		validatedConnections.Delete(remoteIP)
 		conn.Close()
 		close(done)
 	}()
 
 	fmt.Println("new_connection", conn.RemoteAddr())
 	buffer := make([]byte, 1024)
+
+	remoteIP := strings.Split(conn.RemoteAddr().String(), ":")[0]
 
 	for {
 		conn.SetReadDeadline(time.Now().Add(3 * time.Minute))
@@ -72,11 +76,18 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 			continue
 
 		case strings.HasPrefix(message, "98DU"):
+			validatedConnections.Store(remoteIP, true)
 			response := generateEchoAction("99", "DU")
 			conn.Write([]byte(response))
-			fmt.Println("📤 Respuesta enviada:", strings.Trim(response, "\x02\x03"))
+			fmt.Println("✅ Echo enviado y conexión validada para", remoteIP)
 
 		case strings.HasPrefix(message, "11DU"):
+			val, ok := validatedConnections.Load(remoteIP)
+			isValidated, _ := val.(bool)
+			if !ok || !isValidated {
+				fmt.Println("🚫 Conexión no validada con Echo desde", remoteIP)
+				continue
+			}
 			transactionID := getTransactionID(message)
 			phone := message[73:83]
 			responseCode := phone[8:]
@@ -86,6 +97,12 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 			fmt.Println("📤 Respuesta enviada:", strings.Trim(response, "\x02\x03"))
 
 		case strings.HasPrefix(message, "13DU"):
+			val, ok := validatedConnections.Load(remoteIP)
+			isValidated, _ := val.(bool)
+			if !ok || !isValidated {
+				fmt.Println("🚫 Conexión no validada con Echo desde", remoteIP)
+				continue
+			}
 			transactionID := getTransactionID(message)
 			phone := message[73:83]
 			responseCode := phone[8:]
@@ -95,6 +112,12 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 			fmt.Println("📤 Respuesta enviada:", strings.Trim(response, "\x02\x03"))
 
 		case strings.HasPrefix(message, "01DU"):
+			val, ok := validatedConnections.Load(remoteIP)
+			isValidated, _ := val.(bool)
+			if !ok || !isValidated {
+				fmt.Println("🚫 Conexión no validada con Echo desde", remoteIP)
+				continue
+			}
 			transactionID := getTransactionID(message)
 			response := buildTelcelResponseMessageAirTime("00", transactionID)
 			waitOneSecond()
@@ -102,6 +125,12 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 			fmt.Println("📤 Respuesta enviada:", strings.Trim(response, "\x02\x03"))
 
 		case strings.HasPrefix(message, "21DU"):
+			val, ok := validatedConnections.Load(remoteIP)
+			isValidated, _ := val.(bool)
+			if !ok || !isValidated {
+				fmt.Println("🚫 Conexión no validada con Echo desde", remoteIP)
+				continue
+			}
 			transactionID := getTransactionID(message)
 			response := buildTelcelResponseMessageServiceSales("00", transactionID)
 			waitOneSecond()
