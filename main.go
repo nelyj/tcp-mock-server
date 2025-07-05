@@ -83,10 +83,6 @@ func handleConnection(conn net.Conn, done chan struct{}) {
 		fmt.Println("🧪 Evaluando case:", messageType)
 
 		switch {
-		case strings.HasPrefix(message, "97TL"):
-			fmt.Println("✅ Respuesta recibida a echo 96TL (97TL), conexión activa.")
-			continue
-
 		case strings.HasPrefix(message, "11DU"):
 			fmt.Println("🔎 Largo del mensaje:", len(message))
 			transactionID := getTransactionID(message)
