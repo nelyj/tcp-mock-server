@@ -1,11 +1,10 @@
-FROM golang:1.24
+FROM golang:1.21
 
 WORKDIR /app
 
-COPY go.mod .
 COPY . .
 
-RUN go build -v -o tcp-server main.go
+RUN go build -x -o tcp-server main.go
 
 EXPOSE 9000
 
