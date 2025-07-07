@@ -1,130 +1,323 @@
-# Telcel TCP Mock Server
+# Estructura de Payloads Telcel – Acciones 11, 12, 13, 14
 
-Este proyecto simula un servidor TCP que responde a los mensajes del protocolo Telcel (`Pago de Factura`, `Tiempo Aire`, `Echo`, etc.), y responde con mensajes formateados como Telcel.
+## Formato general del mensaje:
+- STX (1 byte): Inicio de mensaje (ASCII 2)
+- Acción (2): Código de acción: 11, 12, 13, 14
+ - ID (8): Identificador compuesto por 2 dígitos de fuente (DU) + 6 de consecutivo. Es numerico creado por Middleware, si es menor a 6 digitos rellena con Ceros.
+- Fecha (8): ddmmaaaa
+- Hora (6): hhmmss
+- Parte Variable (depende de la acción)
+- ETX (1 byte): Fin de mensaje (ASCII 3)
 
-===================================
-🖥 Cómo probarlo desde consola
-===================================
+**Nota:** Las longitudes totales indicadas incluyen los campos fijos (Acción, DU, Longitud, ID, Fecha, Hora) más la parte variable, y excluyen los bytes STX y ETX.
 
-1. Conéctate al servidor usando netcat:
+-------------------------------------------
 
-  nc <host> 9000
+## Acción 11: Requerimiento de Monto de Factura
 
-  Reemplaza <host> con tu dominio público de Railway o "localhost" si lo corres local.
+| Campo        | Longitud | Descripción                        |
+|--------------|----------|------------------------------------|
+| Acción       | 2        | Código de acción (11)              |
+| ID           | 8        | Fuente (2) + Consecutivo (6)       |
+| Fecha        | 8        | ddmmaaaa                           |
+| Hora         | 6        | hhmmss                             |
+| Cadena Comercial | 10       | Numérico                                 |
+| Tienda           | 5        | Numérico                                 |
+| Terminal         | 10       | Alfanumérico                             |
+| Hora Local       | 6        | hhmmss                                   |
+| Fecha Local      | 8        | aaaammdd                                 |
+| Folio            | 10       | Numérico                                 |
+| Teléfono         | 10       | Numérico                                 |
+| CUR              | 13       | Numérico                                 |
 
-===================================
-📡 Casos de uso disponibles
-===================================
+Longitud total (sin STX/ETX): 96 caracteres
 
-▶ 1. Echo Test
+-------------------------------------------
 
-Mensaje a enviar:
-\x0298DU00000120250627170000\x03
+## Acción 12: Respuesta a Requerimiento de Monto de Factura
 
-Resultado esperado:
-  El servidor responde con \x0299DU... (Echo response simulado).
+| Campo        | Longitud | Descripción                        |
+|--------------|----------|------------------------------------|
+| Acción       | 2        | Código de acción (12)              |
+| ID           | 8        | Fuente (2) + Consecutivo (6)       |
+| Fecha        | 8        | ddmmaaaa                           |
+| Hora         | 6        | hhmmss                             |
+| Cadena Comercial      | 10       | Igual a Acción 11                       |
+| Tienda                | 5        | Igual a Acción 11                       |
+| Terminal              | 10       | Igual a Acción 11                       |
+| Hora Local            | 6        | Igual a Acción 11                       |
+| Fecha Local           | 8        | Igual a Acción 11                       |
+| Folio                 | 10       | Igual a Acción 11                       |
+| Teléfono              | 10       | Igual o devuelto según CUR             |
+| CUR                   | 13       | Igual o devuelto según Teléfono        |
+| Saldo Estimado        | 10       | Últimos 2 dígitos son decimales        |
+| Saldo Actual          | 10       | Últimos 2 dígitos son decimales        |
+| Código de Respuesta   | 2        | 00, 01, 02, etc.                        |
+| Nº Transacción Telcel | 6        | Numérico con ceros a la izquierda      |
 
------------------------------------
+Longitud total (sin STX/ETX): 124 caracteres
 
-▶ 2. Pago de Factura (13DU)
+-------------------------------------------
 
-Mensaje de prueba:
-\x0213DU00000120250627170000...<relleno hasta byte 83>...5551234590\x03
+## Acción 13: Requerimiento de Pago de Factura
 
-  Nota: el número en bytes 73-83 debe terminar con dos dígitos (por ejemplo: 90) que serán usados como código de respuesta.
+| Campo        | Longitud | Descripción                        |
+|--------------|----------|------------------------------------|
+| Acción       | 2        | Código de acción (13)              |
+| ID           | 8        | Fuente (2) + Consecutivo (6)       |
+| Fecha        | 8        | ddmmaaaa                           |
+| Hora         | 6        | hhmmss                             |
+| Cadena Comercial   | 10       | Numérico                              |
+| Tienda             | 5        | Numérico                              |
+| Terminal           | 10       | Alfanumérico                          |
+| Hora Local         | 6        | hhmmss                                |
+| Fecha Local        | 8        | aaaammdd                              |
+| Folio              | 10       | Numérico                              |
+| Teléfono           | 10       | Numérico                              |
+| CUR                | 13       | Numérico                              |
+| Monto              | 10       | Últimos 2 dígitos son decimales       |
+| Compromiso de Pago | 2        | 10 (efectivo), 11, 12                 |
 
-Resultado esperado:
-  Respuesta comienza con \x0214DU... e incluye:
-  - Código de respuesta = últimos 2 dígitos del número
-  - Monto simulado
-  - Teléfono y CUR fijos
+Longitud total (sin STX/ETX): 108 caracteres
 
------------------------------------
+-------------------------------------------
 
-▶ 3. Tiempo Aire (01DU)
+## Acción 14: Respuesta a Requerimiento de Pago de Factura
 
-Mensaje de prueba:
-\x0201DU00000120250627170000TX1234567890\x03
+| Campo        | Longitud | Descripción                        |
+|--------------|----------|------------------------------------|
+| Acción       | 2        | Código de acción (14)              |
+| ID           | 8        | Fuente (2) + Consecutivo (6)       |
+| Fecha        | 8        | ddmmaaaa                           |
+| Hora         | 6        | hhmmss                             |
+| Cadena Comercial      | 10       | Igual a Acción 13                     |
+| Tienda                | 5        | Igual a Acción 13                     |
+| Terminal              | 10       | Igual a Acción 13                     |
+| Hora Local            | 6        | Igual a Acción 13                     |
+| Fecha Local           | 8        | Igual a Acción 13                     |
+| Folio                 | 10       | Igual a Acción 13                     |
+| Teléfono              | 10       | Igual a Acción 13                     |
+| CUR                   | 13       | Igual a Acción 13                     |
+| Monto                 | 10       | Igual a Acción 13                     |
+| Compromiso de Pago    | 2        | Igual a Acción 13                     |
+| Código de Respuesta   | 2        | 00, 01, 02, etc.                      |
+| Nº Transacción Telcel | 6        | Numérico con ceros a la izquierda     |
 
-Resultado esperado:
-  Respuesta con \x0202DU... (acción 02) con código de respuesta 00.
+Longitud total (sin STX/ETX): 116 caracteres
 
------------------------------------
 
-▶ 4. Venta de Servicio (21DU)
 
-Mensaje de prueba:
-\x0221DU00000120250627170000SRV1234567890\x03
+-------------------------------------------
 
-Resultado esperado:
-  Respuesta con \x0222DU... incluyendo ID producto, monto simulado y respuesta 00.
+## Acción 96: Solicitud de Echo (de Telcel a Entidad Externa)
 
-===================================
-🛠 Cómo generar los mensajes desde Bash
-===================================
+| Campo  | Longitud | Descripción                                           |
+|--------|----------|-------------------------------------------------------|
+| Acción | 2        | Código de acción (96)                                 |
+| ID     | 8        | ID alfanumérico: "DU" (identificador asignado a nosotros) + consecutivo de 6 dígitos |
+| Fecha  | 8        | ddmmaaaa                                              |
+| Hora   | 6        | hhmmss                                                |
 
-# Echo
-echo -ne "\x0298DU000001$(date +%Y%m%d%H%M%S)\x03" | nc <host> 9000
+Longitud total (sin STX/ETX): 24 caracteres
 
-# Pago de factura (teléfono termina en 90)
-echo -ne "\x0213DU000001$(date +%Y%m%d%H%M%S)$(printf 'X%.0s' {1..60})5551234590\x03" | nc <host> 9000
+-------------------------------------------
 
-# Tiempo aire
-echo -ne "\x0201DU000001$(date +%Y%m%d%H%M%S)TX1234567890\x03" | nc <host> 9000
+## Acción 97: Respuesta a Solicitud de Echo (de Entidad Externa a Telcel)
 
-# Venta servicio
-echo -ne "\x0221DU000001$(date +%Y%m%d%H%M%S)SRV1234567890\x03" | nc <host> 9000
+| Campo  | Longitud | Descripción                                           |
+|--------|----------|-------------------------------------------------------|
+| Acción | 2        | Código de acción (97)                                 |
+| ID     | 8        | Mismo ID recibido en Acción 96 (comienza con 'DU')    |
+| Fecha  | 8        | Mismo valor recibido en Acción 96                     |
+| Hora   | 6        | Mismo valor recibido en Acción 96                     |
 
-===================================
-📜 Script automatizado: test_telcel_mock.sh
-===================================
+Longitud total (sin STX/ETX): 24 caracteres
 
-Guarda el siguiente contenido en un archivo llamado `test_telcel_mock.sh`:
+-------------------------------------------
 
------------------------------------------------------
-#!/bin/bash
+## Acción 98: Solicitud de Echo (de Entidad Externa a Telcel)
 
-HOST="${1:-localhost}"
-PORT="${2:-9000}"
+| Campo  | Longitud | Descripción                                           |
+|--------|----------|-------------------------------------------------------|
+| Acción | 2        | Código de acción (98)                                 |
+| ID     | 8        | ID alfanumérico: "DU" (identificador asignado a nosotros) + consecutivo de 6 dígitos |
+| Fecha  | 8        | ddmmaaaa                                              |
+| Hora   | 6        | hhmmss                                                |
 
-timestamp=$(date +%Y%m%d%H%M%S)
+Longitud total (sin STX/ETX): 24 caracteres
 
-function send_message() {
-  local name="$1"
-  local raw="$2"
+-------------------------------------------
 
-  echo -ne "$raw" | nc "$HOST" "$PORT" | tee "response_${name}.txt"
-  echo -e "\n✅ Saved to response_${name}.txt"
-}
+## Acción 99: Respuesta a Solicitud de Echo (de Telcel a Entidad Externa)
 
-echo "🔄 Testing Echo (98DU)..."
-send_message "echo" "\x0298DU000001${timestamp}\x03"
+| Campo  | Longitud | Descripción                                           |
+|--------|----------|-------------------------------------------------------|
+| Acción | 2        | Código de acción (99)                                 |
+| ID     | 8        | Mismo ID recibido en Acción 98 (comienza con 'DU')    |
+| Fecha  | 8        | Mismo valor recibido en Acción 98                     |
+| Hora   | 6        | Mismo valor recibido en Acción 98                     |
 
-echo -e "\n🔄 Testing Pago de Factura (13DU)..."
-RELLENO=$(printf 'X%.0s' {1..60})
-send_message "pago" "\x0213DU000001${timestamp}${RELLENO}5551234590\x03"
+Longitud total (sin STX/ETX): 24 caracteres
 
-echo -e "\n🔄 Testing Tiempo Aire (01DU)..."
-send_message "tiempoaire" "\x0201DU000001${timestamp}TX1234567890\x03"
+-------------------------------------------
 
-echo -e "\n🔄 Testing Venta de Servicio (21DU)..."
-send_message "servicio" "\x0221DU000001${timestamp}SRV1234567890\x03"
+## Resumen de Longitudes Totales por Acción (sin STX/ETX)
+Longitud total por acción (suma de campos fijos + parte variable, sin STX/ETX):
+```
+- Acción 11: 96 caracteres
+- Acción 12: 124 caracteres
+- Acción 13: 108 caracteres
+- Acción 14: 120 caracteres
+- Acción 96: 24 caracteres
+- Acción 97: 24 caracteres
+- Acción 98: 24 caracteres
+- Acción 99: 24 caracteres
+```
 
-echo -e "\n✅ Pruebas completadas contra $HOST:$PORT"
------------------------------------------------------
+-------------------------------------------
 
-Luego, hazlo ejecutable:
+## Ejemplos válidos para Acciones Echo:
 
-chmod +x test_telcel_mock.sh
+Ejemplos válidos para Acción 96:
+- \x0296TL00000104072025120000\x03
 
-Y ejecútalo así:
+Ejemplos válidos para Acción 97:
+- \x0297TL00000104072025120000\x03
 
-./test_telcel_mock.sh localhost 9000
-# o
-./test_telcel_mock.sh mi-servidor.railway.app 9000
+Ejemplos válidos para Acción 98:
+- \x0298DU00000104072025120000\x03
 
-Esto generará:
-- response_echo.txt
-- response_pago.txt
-- response_tiempoaire.txt
-- response_servicio.txt
+Ejemplos válidos para Acción 99:
+- \x0299DU00000104072025120000\x03
+
+
+---
+
+### Significado detallado de los códigos de respuesta
+
+#### Común a Acción 12 y Acción 14:
+
+| Código | Significado                                                                 |
+|--------|------------------------------------------------------------------------------|
+| 00     | Respuesta OK.                                                                |
+| 01     | Teléfono o CUR no válidos.                                                   |
+| 02     | Destino no disponible (problemas con WS o DB, no se logró ejecutar WS).     |
+| 04     | Teléfono no susceptible de consultar el saldo.                               |
+| 06     | Mantenimiento Telcel en curso.                                               |
+| 07     | Tabla de transacciones llena.                                                |
+| 08     | Rechazo por time-out interno.                                                |
+| 10     | Teléfono en Abogados, acudir a un Centro de Atención a Clientes (CAC).      |
+| 11     | Teléfono sin responsabilidad de pago, acudir a CAC.                         |
+| 13     | Autenticación fallida (cliente, cadena comercial o tienda, según logs).      |
+| 15     | Cuenta no susceptible de recibir pagos por contracargos, dirigirse a CAC.    |
+
+#### Exclusivos de Acción 12:
+
+| Código | Significado                                                                 |
+|--------|------------------------------------------------------------------------------|
+| 12     | Número de consultas de saldo excedidas por parte de la línea pospago.        |
+
+Ejemplos válidos para Acción 11:
+
+Ejemplo 1: \x0211DU001041DE00000112000004072025000000123455667788991234567890123\x03
+Ejemplo 2: \x0211DU001041DE00000112050004072025000000123455667788991234567890123\x03
+
+Ejemplos válidos para Acción 12:
+
+Ejemplo 1: \x0212DU001421DE0000011200000407202500000012345566778899123456789012300001234560000123456000000123\x03
+Ejemplo 2: \x0212DU001421DE0000011205000407202500000012345566778899123456789012300005678900009876501000456\x03
+
+Ejemplos válidos para Acción 13:
+
+Ejemplo 1: \x0213DU001261DE00000112000004072025000000123455667788991234567890123000010000010\x03
+Ejemplo 2: \x0213DU001261DE00000112050004072025000000123455667788991234567890123000050000011\x03
+
+Ejemplos válidos para Acción 14:
+
+Ejemplo 1: \x0214DU001341DE000001120000040720250000001234556677889912345678901230000100000100000123\x03
+Ejemplo 2: \x0214DU001341DE000001120500040720250000001234556677889912345678901230000500000120001456\x03
+
+---
+
+## Consideraciones sobre Echos y TPS (Transacciones por Segundo)
+
+Según la especificación del protocolo Telcel:
+
+> “El envío de echos debe realizarse en un rango que va de 20 segundos a 5 minutos, esto depende de las características de carga del Distribuidor, entre mayor TPS, mayor debe ser el tiempo…”
+
+Esto implica lo siguiente:
+
+- Si el sistema procesa pocas transacciones por segundo (TPS), el intervalo entre echos puede ser cercano a los 20 segundos.
+- Si el sistema procesa muchas transacciones por segundo, se recomienda aumentar el intervalo hasta 5 minutos para no saturar el canal de comunicación.
+
+### Cálculo de TPS
+
+TPS (Transacciones por Segundo) se calcula dividiendo la cantidad de transacciones enviadas en un período por el número de segundos de ese período.  
+Por ejemplo, si en 1 minuto se envían 600 transacciones, el TPS es:  
+```
+TPS = 600 / 60 = 10
+```
+
+### Recomendaciones según el TPS
+
+| TPS estimado | Intervalo sugerido entre echos |
+|-------------|-------------------------------|
+| 0–1 TPS     | 20–60 segundos                |
+| 1–10 TPS    | 1–3 minutos                   |
+| 10+ TPS     | 3–5 minutos                   |
+
+### Justificación técnica
+
+El ajuste dinámico del intervalo entre echos permite:
+- Cumplir con el requerimiento de Telcel.
+- Minimizar sobrecarga innecesaria de mensajes.
+- Mantener la conexión activa con un control eficiente.
+
+Este enfoque es consistente con prácticas de monitoreo en sistemas de alta disponibilidad donde la frecuencia de "heartbeats" o "echos" se ajusta en función de la carga (TPS) para evitar congestión y desconexiones erráticas.
+
+---
+
+## Justificación basada en prácticas industriales y estándares
+
+### Prácticas de la industria
+
+**1. Bancos y Switches de Pago (VisaNet, Prosa, Mastercard):**
+- Emplean mensajes de "heartbeat" para verificar conectividad entre nodos.
+- Ajustan el intervalo de envío dependiendo del volumen de transacciones (TPS).
+- Alta carga ➝ menor frecuencia (mayor intervalo); Baja carga ➝ mayor frecuencia (menor intervalo).
+
+**2. Sistemas de Alta Disponibilidad (Kubernetes, RabbitMQ, Redis):**
+- Ajustan dinámicamente el "health check" o heartbeat dependiendo de la criticidad del canal y la actividad del sistema.
+- Objetivo: evitar congestión y mantener canales activos sin sobrecarga.
+
+**3. Gateways de Pago (Stripe, Adyen, Worldpay):**
+- En conexiones persistentes (TCP, WebSocket), emplean intervalos de 20 segundos hasta 5 minutos, según la actividad.
+
+### Estándares relevantes
+
+**📘 ISO/IEC 30170 – Cloud System Heartbeat Mechanism**
+- Los mecanismos de heartbeat deben ajustarse a la carga del sistema y criticidad del canal.
+
+**📘 ISO/IEC 27002 – Seguridad de la Información (Sección 12.4)**
+- Recomienda ajustar la frecuencia de verificación y monitoreo según el uso del sistema para evitar eventos innecesarios.
+
+**📘 ITU-T X.731 – Fault Management**
+- Especifica que el intervalo de heartbeat debe:
+  - Ser configurable.
+  - Ajustarse a la carga (TPS).
+  - Balancear precisión vs. eficiencia de canal.
+
+### Tabla de referencia recomendada
+
+| TPS estimado | Intervalo sugerido entre echos |
+|--------------|-------------------------------|
+| 0–1 TPS      | 20–60 segundos                |
+| 1–10 TPS     | 1–3 minutos                   |
+| 10+ TPS      | 3–5 minutos                   |
+
+Esta tabla busca balancear:
+- Mantener la conexión activa de manera eficiente.
+- No sobrecargar el canal con echos innecesarios.
+- Cumplir con lo establecido por Telcel y buenas prácticas internacionales.
+
+---
