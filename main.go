@@ -44,15 +44,19 @@ func handleConnection(conn net.Conn) {
 		}
 
 		received := string(buffer[:n])
+		fmt.Printf("received_raw: %q\n", received)
 
 		message := string(received)
 		message = strings.Trim(message, "\x02\x03")
+		fmt.Println("parsed_message:", message)
 		if strings.HasPrefix(message, "97TL") {
 			continue
 		}
 
 		if strings.HasPrefix(message, "98DU") {
-			_, err := conn.Write([]byte(generateEchoAction("99", "DU")))
+			response := generateEchoAction("99", "DU")
+			fmt.Printf("sending_response: %q\n", response)
+			_, err := conn.Write([]byte(response))
 			if err != nil {
 				fmt.Println("error sending message:", err)
 				break
@@ -73,6 +77,7 @@ func handleConnection(conn net.Conn) {
 			responseCode := phone[8:]
 			fmt.Println("responseCode 11DU:", responseCode)
 			msgResponse := buildTelcelResponseMessageBillInquiry(responseCode, transactionID)
+			fmt.Printf("sending_response: %q\n", msgResponse)
 			waitOneSecond()
 			conn.Write([]byte(msgResponse))
 			continue
@@ -83,6 +88,7 @@ func handleConnection(conn net.Conn) {
 			responseCode := phone[8:] // last 2 digits
 			fmt.Println("responseCode 13DU:", responseCode)
 			msgResponse := buildTelcelResponseMessageBillPayment(responseCode, transactionID)
+			fmt.Printf("sending_response: %q\n", msgResponse)
 			waitOneSecond()
 			conn.Write([]byte(msgResponse))
 			continue
@@ -90,18 +96,23 @@ func handleConnection(conn net.Conn) {
 
 		if strings.HasPrefix(message, "01DU") {
 			transactionID := getTransactionID(message)
+			msgResponse := buildTelcelResponseMessageAirTime("00", transactionID)
+			fmt.Printf("sending_response: %q\n", msgResponse)
 			waitOneSecond()
-			conn.Write([]byte(buildTelcelResponseMessageAirTime("00", transactionID)))
+			conn.Write([]byte(msgResponse))
 			continue
 		}
 
 		if strings.HasPrefix(message, "21DU") {
 			transactionID := getTransactionID(message)
+			msgResponse := buildTelcelResponseMessageServiceSales("00", transactionID)
+			fmt.Printf("sending_response: %q\n", msgResponse)
 			waitOneSecond()
-			conn.Write([]byte(buildTelcelResponseMessageServiceSales("00", transactionID)))
+			conn.Write([]byte(msgResponse))
 			continue
 		}
 
+		fmt.Printf("echoing_back: %q\n", received)
 		waitOneSecond()
 		conn.Write([]byte(received))
 	}
