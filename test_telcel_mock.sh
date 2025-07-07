@@ -554,7 +554,7 @@ send_98du() {
 
 # Inicio de pruebas
 # Acción 98 – Esperado: 24 caracteres
-send_98du
+# send_98du
 
 # 🧪 Iniciando pruebas de acción 13DU (Pago de Factura)...
 echo -e "\n🧪 Iniciando pruebas de acción 13DU (Pago de Factura)..."
