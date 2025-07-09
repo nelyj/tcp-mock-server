@@ -86,7 +86,7 @@ func handleConnection(conn net.Conn) {
 			responseCode := phone[8:]
 			fmt.Println("responseCode 11DU:", responseCode)
 			tienda := message[34:39]
-			terminal := message[40:50]
+			terminal := message[39:49]
 			cadenaComercial := message[24:34]
 			fields := DynamicFields{
 				Telefono:        message[73:83],
